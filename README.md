@@ -17,14 +17,30 @@ app/       Swift / Xcode project for the macOS UI. Depends on engine/ via the
 scripts/   Shared build helpers (build-engine.sh, release.sh).
 ```
 
+## Install
+
+```sh
+# CLI — Homebrew (macOS & Linux, arm64 + x86_64)
+brew tap AnasImloul/homebrew-tap
+brew install jsq
+
+# CLI — from source (needs the Rust toolchain)
+cd engine && cargo install --path .
+```
+
+The macOS app ships as a `.dmg` on the [releases page](https://github.com/AnasImloul/BigJSON/releases). It's ad-hoc signed, so on first launch run:
+
+```sh
+xattr -d com.apple.quarantine /Applications/BigJSON.app
+```
+
 ## Quick start
 
 ```sh
 # CLI
-cd engine && cargo install --path .
 jsq path/to/file.json 'from .events[] as e aggregate { n: count() }'
 
-# macOS app
+# macOS app — build & run locally
 open app/BigJSON.xcodeproj          # then ⌘R, or:
 scripts/release.sh                  # builds a signed .dmg in ./build
 ```
