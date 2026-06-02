@@ -1,6 +1,6 @@
 # engine
 
-The BigJSON query engine. A streaming JSON parser, offset-index builder, and SQL-shaped query evaluator — packaged as a Rust library, a C ABI, and the `jsq` command-line tool.
+The jsq query engine. A streaming JSON parser, offset-index builder, and SQL-shaped query evaluator — packaged as a Rust library, a C ABI, and the `jsq` command-line tool.
 
 Used by:
 - the `jsq` CLI in this crate
