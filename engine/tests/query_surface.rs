@@ -174,6 +174,16 @@ fn q4_ne_and_not_in_with_multi_key() {
             out
         );
     }
+    // A composite `by k1, k2` renders one column per key, never a single
+    // U+001F-joined key column.
+    assert!(!joined.contains('\u{1F}'), "composite key leaked separator: {:?}", out);
+    for row in &out {
+        assert!(
+            row.contains("\"branch\":") && row.contains("\"shelf\":"),
+            "row missing a key column: {}",
+            row
+        );
+    }
 }
 
 #[test]

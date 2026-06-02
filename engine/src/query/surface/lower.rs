@@ -502,15 +502,15 @@ fn lower_aggregate_block(
                 })
             }
             many => {
-                let mut parts = Vec::with_capacity(many.len());
-                for k in many {
-                    parts.push(lower_expr(k, env)?);
+                let mut keys = Vec::with_capacity(many.len());
+                for (i, k) in many.iter().enumerate() {
+                    let name = group_key_label(k).unwrap_or_else(|| format!("key{}", i + 1));
+                    keys.push(AggGroupKey {
+                        name,
+                        key: Box::new(lower_expr(k, env)?),
+                    });
                 }
-                let name = group_key_label(&many[0]).unwrap_or_else(|| "key".to_string());
-                Some(AggGroup::Single {
-                    name,
-                    key: Box::new(Ast::KeyTuple(parts)),
-                })
+                Some(AggGroup::Multi(keys))
             }
         }
     };

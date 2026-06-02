@@ -352,7 +352,8 @@ pub(crate) fn collect_lookups<'a>(
         Ast::AggregateBlock { group, reductions, outputs } => {
             match group {
                 Some(super::ast::AggGroup::Single { key, .. }) => collect_lookups(key, out),
-                Some(super::ast::AggGroup::Rollup(keys)) => {
+                Some(super::ast::AggGroup::Multi(keys))
+                | Some(super::ast::AggGroup::Rollup(keys)) => {
                     for k in keys {
                         collect_lookups(&k.key, out);
                     }

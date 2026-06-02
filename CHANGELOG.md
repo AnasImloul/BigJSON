@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Fixed
+- Composite group-by (`aggregate { … } by k1, k2`) now emits one result column per
+  key (`{"region": …, "tier": …, …}`) instead of a single column holding the keys
+  joined by a U+001F separator.
+
 ## [1.0.0] - 2026-06-02
 
 First public release.

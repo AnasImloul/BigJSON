@@ -41,6 +41,9 @@ pub(super) fn run_aggregate_block(
     if let Some(AggGroup::Rollup(keys)) = group {
         return run_rollup_block(doc, upstream, keys, reductions, outputs, input, sink);
     }
+    if let Some(AggGroup::Multi(keys)) = group {
+        return run_multi_block(doc, upstream, keys, reductions, outputs, input, sink);
+    }
     // From here on `group` is either `None` or `Single`.
     let mut single_bucket: Option<AggregateBucket> = group
         .is_none()
@@ -309,6 +312,70 @@ fn run_rollup_block(
             if !sink(Value::BucketRow(fields)) {
                 return false;
             }
+        }
+    }
+    true
+}
+
+/// `by k1, …, kN` (composite, no rollup): one bucket per distinct key
+/// tuple, emitting one column per key. This is the most-detailed level of
+/// `run_rollup_block` on its own — no subtotal or grand-total rows, and
+/// no key column ever renders as `null`. A row whose key tuple has any
+/// missing component is dropped, matching the single-key rule.
+fn run_multi_block(
+    doc: &Document,
+    upstream: &Ast,
+    keys: &[AggGroupKey],
+    reductions: &[AggReduction],
+    outputs: &[(String, AggOutputNode)],
+    input: Value,
+    sink: &mut dyn FnMut(Value) -> bool,
+) -> bool {
+    let k = keys.len();
+    let mut buckets: HashMap<ScalarKey, RollupBucket> = HashMap::new();
+
+    walk(doc, upstream, input, &mut |row| {
+        let mut vals: Vec<Value> = Vec::with_capacity(k);
+        for key in keys {
+            match first_emission(doc, &key.key, row.clone()) {
+                Some(v) => vals.push(v),
+                None => return true, // missing key component — drop row
+            }
+        }
+        // Bucket key: the key values U+001F-joined, like `Ast::KeyTuple`.
+        let mut composite = String::new();
+        for (i, v) in vals.iter().enumerate() {
+            if i > 0 {
+                composite.push('\u{1F}');
+            }
+            composite.push_str(&value_to_group_key(doc, v));
+        }
+        let bucket = buckets
+            .entry(ScalarKey::Str(composite))
+            .or_insert_with(|| RollupBucket {
+                key_values: vals,
+                states: (0..reductions.len()).map(|_| ReducerState::default()).collect(),
+            });
+        apply_reductions(doc, reductions, &row, &mut bucket.states);
+        true
+    });
+
+    let key_names: Vec<&str> = keys.iter().map(|kk| kk.name.as_str()).collect();
+    let mut entries: Vec<(ScalarKey, RollupBucket)> = buckets.into_iter().collect();
+    entries.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+    for (_sk, bucket) in entries {
+        let mut fields: Vec<(String, Value)> = Vec::with_capacity(k + outputs.len());
+        for (name, v) in key_names.iter().zip(bucket.key_values.iter()) {
+            fields.push((name.to_string(), v.clone()));
+        }
+        let slots = finalize_slots(reductions, &bucket.states);
+        push_reducer_slots(slots);
+        for (name, node) in outputs {
+            fields.push((name.clone(), evaluate_output_node(doc, node)));
+        }
+        pop_reducer_slots();
+        if !sink(Value::BucketRow(fields)) {
+            return false;
         }
     }
     true

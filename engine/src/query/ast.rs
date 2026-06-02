@@ -365,10 +365,14 @@ pub enum AggOutputNode {
 
 #[derive(Clone, Debug)]
 pub enum AggGroup {
-    /// Single grouping key. Covers `by k` and `by k1, k2, …` (the latter
-    /// folds into a single `Ast::KeyTuple`). One bucket per distinct key
-    /// value; the result renders with one leading key column named `name`.
+    /// Single grouping key (`by k`). One bucket per distinct key value;
+    /// the result renders with one leading key column named `name`.
     Single { name: String, key: Box<Ast> },
+    /// Composite grouping key (`by k1, k2, …`). One bucket per distinct
+    /// key *tuple*; the result renders with one leading key column per
+    /// key, each named after its own path. Unlike `Rollup`, there are no
+    /// subtotal/grand-total rows — just the full-detail groups.
+    Multi(Vec<AggGroupKey>),
     /// `by rollup(k1, …, kN)` — hierarchical grouping. The evaluator emits
     /// one bucket set per key prefix (`(k1…kN)`, `(k1…k(N-1))`, …, `()`),
     /// so the stream carries full-detail rows, every subtotal level, and a
@@ -594,6 +598,15 @@ impl std::fmt::Display for Ast {
                 match group {
                     Some(AggGroup::Single { name, key }) => {
                         write!(f, "{}={}", json_quote(name), key)?;
+                        first = false;
+                    }
+                    Some(AggGroup::Multi(keys)) => {
+                        for (i, k) in keys.iter().enumerate() {
+                            if i > 0 {
+                                f.write_str(", ")?;
+                            }
+                            write!(f, "{}={}", json_quote(&k.name), k.key)?;
+                        }
                         first = false;
                     }
                     Some(AggGroup::Rollup(keys)) => {
