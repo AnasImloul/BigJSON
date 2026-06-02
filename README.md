@@ -1,4 +1,4 @@
-# BigJSON
+# jsq
 
 Tools for opening, exploring, and querying very large JSON files (1+ GB) with a SQL-shaped query language. Two front-ends share one engine:
 
@@ -28,7 +28,7 @@ brew install jsq
 cd engine && cargo install --path .
 ```
 
-The macOS app ships as a `.dmg` on the [releases page](https://github.com/AnasImloul/BigJSON/releases). It's ad-hoc signed, so on first launch run:
+The macOS app ships as a `.dmg` on the [releases page](https://github.com/AnasImloul/jsq/releases). It's ad-hoc signed, so on first launch run:
 
 ```sh
 xattr -d com.apple.quarantine /Applications/BigJSON.app
