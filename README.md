@@ -103,8 +103,9 @@ The parser, lowerer, and formatter are in `engine/src/query/surface/`, and
 ## Benchmarks
 
 `jsq` streams in a single pass, so its memory stays roughly flat while `jq` parses the
-whole document into RAM. On a 1 GB file jsq answers in 4–6s using ~2.3 GB, where jq
-takes 30–50s and holds ~11 GB resident — roughly **7–10× faster with ~5× less memory**,
-and the gap widens with size. See **[docs/BENCHMARKS.md](docs/BENCHMARKS.md)** for the
-full methodology and results (`jq` is faster on small files — the reference is honest
-about where each tool wins).
+whole document into RAM. On a 1 GB file jsq answers aggregate queries in 4–6s using
+**~34 MiB** of real memory (the figure Activity Monitor shows), where jq takes 30–55s
+and needs **~17 GB** — roughly **7–10× faster with ~500× less memory**, and the gap
+widens with size. See **[docs/BENCHMARKS.md](docs/BENCHMARKS.md)** for the full
+methodology and results (`jq` is faster on small files — the reference is honest about
+where each tool wins).

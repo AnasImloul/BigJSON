@@ -24,10 +24,17 @@ exec)
     ;;
 bench)
     file="$2"; label="$3"; runs="${4:-5}"
-    peak_mib() { # tool qfile -> peak RSS in MiB
+    # Returns "<footprint_mib> <rss_mib>". "peak memory footprint" is the
+    # dirty+compressed memory Activity Monitor shows as "Memory"; RSS also
+    # counts clean, reclaimable mmap'd pages.
+    peak_mem() { # tool qfile -> "<footprint_mib> <rss_mib>"
         local t; t="$(mktemp)"
         /usr/bin/time -l "$HERE/run.sh" exec "$1" "$file" "$2" >/dev/null 2>"$t" || true
-        awk '/maximum resident set size/ {printf "%.0f", $1/1048576}' "$t"
+        awk '
+            /maximum resident set size/ {rss=$1}
+            /peak memory footprint/   {fp=$1}
+            END {printf "%.0f %.0f", fp/1048576, rss/1048576}
+        ' "$t"
         rm -f "$t"
     }
     median_s() { # tool qfile -> median seconds
@@ -39,15 +46,17 @@ bench)
     }
     echo "### $label"
     echo
-    echo "| Query | jsq time | jq time | speedup | jsq peak RSS | jq peak RSS |"
-    echo "|-------|---------:|--------:|--------:|-------------:|------------:|"
+    echo "| Query | jsq time | jq time | time speedup | jsq RAM | jq RAM | RAM ratio | jsq RSS | jq RSS |"
+    echo "|-------|---------:|--------:|-------------:|--------:|-------:|----------:|--------:|-------:|"
     for q in q1 q2 q3 q4; do
         jsqf="$QDIR/$q.jsq"; jqf="$QDIR/$q.jq"
         jt="$(median_s jsq "$jsqf")"; qt="$(median_s jq "$jqf")"
-        jm="$(peak_mib jsq "$jsqf")"; qm="$(peak_mib jq "$jqf")"
+        read -r jfp jrss <<<"$(peak_mem jsq "$jsqf")"
+        read -r qfp qrss <<<"$(peak_mem jq "$jqf")"
         sp="$(awk -v a="$qt" -v b="$jt" 'BEGIN{printf "%.1fx", a/b}')"
-        printf "| %s | %.3fs | %.3fs | %s | %s MiB | %s MiB |\n" \
-            "$q" "$jt" "$qt" "$sp" "$jm" "$qm"
+        mr="$(awk -v a="$qfp" -v b="$jfp" 'BEGIN{printf "%.0fx", a/b}')"
+        printf "| %s | %.3fs | %.3fs | %s | %s MiB | %s MiB | %s | %s MiB | %s MiB |\n" \
+            "$q" "$jt" "$qt" "$sp" "$jfp" "$qfp" "$mr" "$jrss" "$qrss"
     done
     echo
     ;;
