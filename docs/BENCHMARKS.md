@@ -101,8 +101,16 @@ while scanning the full gigabyte.
   ~4–6×, because jq's full parse and allocation cost grows with the document while
   jsq's single pass does not.
 - **Group-bys (q3/q4) favor jsq most**, since jq must build and hold intermediate
-  structures while jsq folds them away as it scans. The `q1` projection uses more memory
-  than the aggregates on both tools because it materializes a large result stream.
+  structures while jsq folds them away as it scans.
+- **jsq's flat memory is a property of *reducing* queries, not projections.** q2–q4
+  collapse the input to a single count / a handful of group rows, so jsq's owned memory
+  stays at ~34 MiB no matter the file size. q1 is different: it emits one output row per
+  surviving event (~3.5M rows at 1 GB, since ≈half clear `amount > 500`), and jsq buffers
+  the entire result set on the heap before printing
+  (`evaluator::run`, `engine/src/query/evaluator/mod.rs`). That buffer — a `path` string
+  plus the projected value per row — is the 1235 MiB, and it scales with the *output*
+  size, not the file size. A query that returns a lot of rows costs real RAM on both
+  tools; jsq's advantage is on filters and aggregates that return little.
 - **jq wins at small scale.** Below ~5 MB, jq's lower process startup makes it faster on
   the simple queries — the whole job is over before jsq's index build pays off. Reach
   for jsq when files are large; reach for jq for quick hits on small files and its far
