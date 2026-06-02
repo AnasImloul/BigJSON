@@ -6,6 +6,9 @@ name: Release
 #
 # Produces:
 #   - BigJSON-<version>.dmg attached to the GitHub release
+#   - jsq CLI tarballs (macOS + Linux, arm64 + amd64) on the release
+#   - the jsql crate published to crates.io (requires the
+#     CARGO_REGISTRY_TOKEN repo secret; only on a real tag push)
 #
 # The .dmg is ad-hoc signed by default — users will see a Gatekeeper
 # warning on first launch (right-click → Open to bypass). Promote to
@@ -183,3 +186,30 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           fail_on_unmatched_files: true
           files: ${{ steps.pkg.outputs.path }}
+
+  crates:
+    name: Publish jsql to crates.io
+    # Only on a real tag push — a manual workflow_dispatch run shouldn't
+    # publish to the immutable registry. Gated on the .dmg build so a
+    # broken release never lands on crates.io.
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo deps
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine
+
+      - name: Publish
+        working-directory: engine
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish --locked
