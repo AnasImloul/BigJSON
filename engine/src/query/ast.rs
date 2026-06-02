@@ -145,6 +145,14 @@ pub enum Ast {
     /// pipe-RHS position it acts as identity.
     Distinct,
 
+    /// Stateful dedupe by key. Pipe-RHS only: walks the LHS stream and,
+    /// for each row, evaluates the key expressions against that row and
+    /// fingerprints the resulting tuple (components U+001F-joined, like
+    /// composite `aggregate … by`). The first row seen for each distinct
+    /// key tuple is emitted *whole*; later rows with the same key are
+    /// dropped. Outside a pipe-RHS position it acts as identity.
+    DistinctBy(Vec<Ast>),
+
     /// Postfix existence test. Walks the inner expression and emits
     /// `Bool(true)` iff it produces at least one value (regardless of
     /// whether that value is `null`). Distinct from `!= null` because a
@@ -592,6 +600,16 @@ impl std::fmt::Display for Ast {
             }
             Ast::Limit(n) => write!(f, "limit({})", n),
             Ast::Distinct => f.write_str(kw::DISTINCT),
+            Ast::DistinctBy(keys) => {
+                write!(f, "{} {} ", kw::DISTINCT, kw::BY)?;
+                for (i, k) in keys.iter().enumerate() {
+                    if i > 0 {
+                        f.write_str(", ")?;
+                    }
+                    write!(f, "{}", k)?;
+                }
+                Ok(())
+            }
             Ast::AggregateBlock { group, reductions, outputs } => {
                 f.write_str("aggregate_block(")?;
                 let mut first = true;

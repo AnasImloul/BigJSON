@@ -153,8 +153,18 @@ fn lower_query_scoped(
     }
 
     // ----- distinct -----
-    if q.distinct {
-        pipeline = pipe(pipeline, Ast::Distinct);
+    match &q.distinct {
+        None => {}
+        Some(keys) if keys.is_empty() => {
+            pipeline = pipe(pipeline, Ast::Distinct);
+        }
+        Some(keys) => {
+            let mut lowered = Vec::with_capacity(keys.len());
+            for k in keys {
+                lowered.push(lower_expr(k, &env)?);
+            }
+            pipeline = pipe(pipeline, Ast::DistinctBy(lowered));
+        }
     }
 
     // ----- aggregate (with alias_let preprocessing) -----
@@ -1268,6 +1278,9 @@ fn predicate_cost(ast: &Ast) -> u64 {
         Ast::Select(inner) | Ast::Exists(inner) | Ast::Tap(inner) => predicate_cost(inner),
         Ast::Let { value, .. } => predicate_cost(value),
         Ast::Sum | Ast::Min | Ast::Max | Ast::Avg | Ast::Count | Ast::Limit(_) | Ast::Distinct => 1,
+        Ast::DistinctBy(keys) => {
+            keys.iter().fold(1u64, |acc, k| acc.saturating_add(predicate_cost(k)))
+        }
         Ast::Lookup { source, key, .. } => {
             30u64.saturating_add(predicate_cost(source)).saturating_add(predicate_cost(key))
         }

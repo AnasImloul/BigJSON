@@ -92,9 +92,25 @@ pub fn format_query(q: &Query) -> String {
         }
     }
 
-    if q.distinct {
-        out.push_str(kw::DISTINCT);
-        out.push('\n');
+    match &q.distinct {
+        None => {}
+        Some(keys) if keys.is_empty() => {
+            out.push_str(kw::DISTINCT);
+            out.push('\n');
+        }
+        Some(keys) => {
+            out.push_str(kw::DISTINCT);
+            out.push(' ');
+            out.push_str(kw::BY);
+            out.push(' ');
+            for (i, k) in keys.iter().enumerate() {
+                if i > 0 {
+                    out.push_str(", ");
+                }
+                format_expr(&mut out, k);
+            }
+            out.push('\n');
+        }
     }
 
     if let Some(agg) = &q.aggregate {

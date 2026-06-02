@@ -33,7 +33,7 @@ from PATH as ALIAS                    -- REQUIRED; PATH is implicitly iterated
 (unnest EXPR as ALIAS)*               -- array fan-out, one row per element
 (where PREDICATE)?
 (let NAME = EXPR (, NAME = EXPR)*)?    -- alias bindings substituted into aggregate
-distinct?
+(distinct [by KEY[, KEY]...])?       -- whole-row dedupe, or dedupe by key tuple
 (aggregate { NAME: REDUCER [where P] [?? D], ... } [by KEY[, KEY] | by rollup(...)]
   | collect by KEY)?
 (having PREDICATE)?                   -- filter reduced rows; refs output by .name
@@ -164,6 +164,35 @@ jsq orders.json 'from .orders[] as o aggregate { n: count() } by o.region having
 {"region": "EU", "n": 2}
 ```
 
+## distinct — drop duplicate rows
+
+`distinct` dedupes the stream. Bare, it compares the **whole row**, so it only
+collapses rows that are identical in every bound field:
+
+```sh
+jsq tags.json 'from .tags[] as t distinct'
+```
+
+`distinct by KEY[, KEY]...` dedupes on a **key tuple** instead, emitting the first
+row seen for each distinct key (the full row, not just the key) — jsq's equivalent
+of SQL `DISTINCT ON (...)`:
+
+```sh
+# one row per event type — the first occurrence wins
+jsq events.json 'from .events[] as e distinct by e.type'
+
+# one row per (type, region) combination
+jsq events.json 'from .events[] as e distinct by e.type, e.region'
+```
+
+To get just the distinct *values* of a field, pair it with `select`:
+
+```sh
+jsq events.json 'from .events[] as e distinct by e.type select { type: e.type }'
+```
+
+`distinct` runs after `where` and before `aggregate`.
+
 ## Joins & unnest
 
 `join ... on L == R` is an inner join; `left join` keeps unmatched left rows with the
@@ -217,6 +246,7 @@ Map source constructs to clauses (think SQL/pandas, not loops):
 | `groupBy(k)` gather members            | `collect by k`            |
 | join across two collections            | `join ... on a == b`      |
 | `set()` / `DISTINCT`                   | `distinct`                |
+| `DISTINCT ON (k1, k2)`                 | `distinct by k1, k2`      |
 | `sorted(key, reverse)`                 | `order by EXPR [desc]`    |
 | `[:N]` / `LIMIT`                       | `limit N`                 |
 | `x or default` / coalesce              | `EXPR ?? DEFAULT`         |

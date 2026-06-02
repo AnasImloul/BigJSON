@@ -663,6 +663,52 @@ fn distinct_dedupes_a_stream() {
 }
 
 #[test]
+fn distinct_by_key_keeps_first_row_per_key() {
+    let path = write_tmp(
+        "engine_query_distinct_by_key.json",
+        r#"{"events":[
+            {"type":"click","region":"east","amount":3},
+            {"type":"view","region":"east","amount":1},
+            {"type":"click","region":"west","amount":9},
+            {"type":"click","region":"east","amount":5},
+            {"type":"view","region":"west","amount":2},
+            {"type":"buy","region":"east","amount":7}
+        ]}"#,
+    );
+    let doc = Document::open(&path, None).unwrap();
+
+    // distinct by a single key: one row per type, the first one wins
+    // (the whole row is emitted, not just the key).
+    let rows = run_surface(
+        &doc,
+        "from .events[] as e distinct by e.type select { type: e.type, amount: e.amount }",
+    );
+    assert_eq!(rows.len(), 3, "{:?}", rows);
+    assert!(rows[0].contains("\"type\": \"click\"") && rows[0].contains("\"amount\": 3"));
+    assert!(rows[2].contains("\"type\": \"buy\""));
+
+    // composite key: one row per (type, region) tuple.
+    let rows = run_surface(
+        &doc,
+        "from .events[] as e distinct by e.type, e.region select { type: e.type, region: e.region }",
+    );
+    assert_eq!(rows.len(), 5, "{:?}", rows);
+}
+
+#[test]
+fn distinct_by_formatter_round_trips() {
+    for q in [
+        "from .events[] as e distinct select { t: e.type }",
+        "from .events[] as e distinct by e.type select { t: e.type }",
+        "from .events[] as e distinct by e.type, e.region select { t: e.type }",
+    ] {
+        let formatted = surface::format(q).expect("format ok");
+        let reformatted = surface::format(&formatted).expect("reformat ok");
+        assert_eq!(formatted, reformatted, "not idempotent for: {q}");
+    }
+}
+
+#[test]
 fn collect_by_collects_members_per_bucket() {
     let path = write_tmp(
         "engine_query_collect_by.json",

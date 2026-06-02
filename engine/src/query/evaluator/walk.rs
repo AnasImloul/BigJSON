@@ -173,6 +173,7 @@ pub(super) fn walk(
                     return run_limit(doc, l, *n, input, sink);
                 }
                 Ast::Distinct => return run_distinct(doc, l, input, sink),
+                Ast::DistinctBy(keys) => return run_distinct_by(doc, l, keys, input, sink),
                 Ast::AggregateBlock { group, reductions, outputs } => {
                     return run_aggregate_block(
                         doc,
@@ -281,6 +282,7 @@ pub(super) fn walk(
         | Ast::SortBy(..)
         | Ast::Limit(..)
         | Ast::Distinct
+        | Ast::DistinctBy(..)
         | Ast::AggregateBlock { .. } => sink(input),
 
         // Foreign-reference resolver. Treats the input as a key value
@@ -738,6 +740,41 @@ fn run_distinct(
     walk(doc, l, input, &mut |v| {
         scratch.clear();
         write_fingerprint(doc, &v, &mut scratch);
+        if seen.contains(scratch.as_slice()) {
+            true
+        } else {
+            seen.insert(scratch.clone());
+            sink(v)
+        }
+    })
+}
+
+fn run_distinct_by(
+    doc: &Document,
+    l: &Ast,
+    keys: &[Ast],
+    input: Value,
+    sink: &mut dyn FnMut(Value) -> bool,
+) -> bool {
+    // Like `run_distinct`, but the fingerprint covers only the evaluated
+    // key tuple — the whole row is still what gets emitted. Components
+    // are U+001F-separated (matching composite `aggregate … by`); a row
+    // whose key component is missing fingerprints a NUL marker so all
+    // such rows collapse together rather than being dropped.
+    let mut seen: std::collections::HashSet<Vec<u8>, rustc_hash::FxBuildHasher> =
+        std::collections::HashSet::default();
+    let mut scratch: Vec<u8> = Vec::with_capacity(32);
+    walk(doc, l, input, &mut |v| {
+        scratch.clear();
+        for (i, key) in keys.iter().enumerate() {
+            if i > 0 {
+                scratch.push(0x1f);
+            }
+            match first_emission(doc, key, v.clone()) {
+                Some(kv) => write_fingerprint(doc, &kv, &mut scratch),
+                None => scratch.push(0x00),
+            }
+        }
         if seen.contains(scratch.as_slice()) {
             true
         } else {

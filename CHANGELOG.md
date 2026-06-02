@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+- `distinct by KEY[, KEY]...` — dedupe the stream on a key tuple (emitting the
+  first whole row per distinct key), the equivalent of SQL `DISTINCT ON`. Bare
+  `distinct` (whole-row dedupe) is unchanged.
+
 ### Fixed
 - Composite group-by (`aggregate { … } by k1, k2`) now emits one result column per
   key (`{"region": …, "tier": …, …}`) instead of a single column holding the keys

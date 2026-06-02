@@ -138,9 +138,10 @@ pub mod kw {
     /// `FROM` in `S` with `TO`. Empty `FROM` returns `S` unchanged.
     pub const REPLACE: &str = "replace";
 
-    /// Stream-deduping clause. `SOURCE [where P] distinct …` emits each
-    /// row at most once (by raw-byte equality on engine nodes,
-    /// JSON-encoded form on synthetics).
+    /// Stream-deduping clause. Bare `distinct` emits each row at most
+    /// once (by raw-byte equality on engine nodes, JSON-encoded form on
+    /// synthetics). `distinct by KEY[, KEY]...` dedupes on the key tuple
+    /// instead, emitting the first whole row per distinct key.
     pub const DISTINCT: &str = "distinct";
 }
 

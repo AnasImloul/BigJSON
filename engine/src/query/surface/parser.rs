@@ -8,7 +8,7 @@
 //!   (join PATH as ALIAS on EXPR)*
 //!   (where EXPR)?
 //!   (let NAME = EXPR (, NAME = EXPR)*)?
-//!   distinct?
+//!   (distinct [by KEY (, KEY)*])?
 //!   (aggregate-clause)?      // `aggregate { ... }` block | `collect by`
 //!   (select { NAME: EXPR, ... })?
 //!   (order by EXPR [asc|desc] (, EXPR [asc|desc])*)?
@@ -180,7 +180,15 @@ impl Parser {
             }
         }
 
-        let distinct = self.consume_keyword(kw::DISTINCT);
+        let distinct = if self.consume_keyword(kw::DISTINCT) {
+            if self.consume_keyword(kw::BY) {
+                Some(self.parse_group_keys()?)
+            } else {
+                Some(Vec::new())
+            }
+        } else {
+            None
+        };
 
         let aggregate = self.parse_aggregate_clause_opt()?;
 

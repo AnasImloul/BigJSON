@@ -344,6 +344,11 @@ pub(crate) fn collect_lookups<'a>(
                 collect_lookups(k, out);
             }
         }
+        Ast::DistinctBy(keys) => {
+            for k in keys {
+                collect_lookups(k, out);
+            }
+        }
         Ast::KeyTuple(parts) | Ast::ArrayLit(parts) => {
             for p in parts {
                 collect_lookups(p, out);

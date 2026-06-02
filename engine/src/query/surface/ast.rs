@@ -29,9 +29,11 @@ pub struct Query {
     /// element (an empty / non-array `EXPR` drops the row).
     pub unnests: Vec<UnnestClause>,
     pub where_clause: Option<Predicate>,
-    /// `distinct` clause — when present, the pipeline emits each row
-    /// at most once after `where` filters.
-    pub distinct: bool,
+    /// `distinct [by KEY[, KEY]...]` clause. `None` = absent. `Some([])`
+    /// = bare `distinct`, deduping on the whole row. `Some(keys)` =
+    /// `distinct by k1, k2, …`, deduping on the key tuple while still
+    /// emitting the full row (first row per distinct key wins).
+    pub distinct: Option<Vec<Expr>>,
     /// Post-`where` `let NAME = EXPR (, NAME = EXPR)*`. RHS is an
     /// arbitrary expression (typically reducer arithmetic) substituted
     /// into each aggregate item at lowering time.
