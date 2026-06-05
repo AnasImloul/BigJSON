@@ -29,7 +29,8 @@
 //! everything else is patched in-place in the sink buffer.
 
 use std::fs::File;
-use std::os::unix::fs::FileExt;
+
+use crate::platform::PositionalIo;
 
 use crate::document::{
     NodeKind, NodeRecord, FAT_STRING_THRESHOLD, FLAG_ARRAY_ELEMENT, FLAG_OBJECT_MEMBER, NULL_NODE,

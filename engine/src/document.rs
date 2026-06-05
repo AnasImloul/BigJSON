@@ -213,7 +213,7 @@ impl Document {
         sidecar_dir: Option<&Path>,
         work_dir: &Path,
     ) -> Result<Self, EngineError> {
-        use std::os::unix::fs::FileExt;
+        use crate::platform::{MmapHints, PositionalIo};
 
         // Beacon goes to (0, source_size) up front so the UI can
         // switch from indeterminate spinner to determinate bar
@@ -305,9 +305,8 @@ impl Document {
                         if parsed >= last_source_drop + SOURCE_DROP_CHUNK {
                             let drop_end = parsed - (parsed % 4096);
                             if drop_end > last_source_drop {
-                                let _ = unsafe {
-                                    source_mmap_ref.unchecked_advise_range(
-                                        memmap2::UncheckedAdvice::DontNeed,
+                                unsafe {
+                                    source_mmap_ref.hint_dont_need(
                                         last_source_drop,
                                         drop_end - last_source_drop,
                                     )
@@ -437,7 +436,7 @@ impl Document {
         // Random-access advice: queries jump around the records array
         // following sibling chains and subtree pointers; sequential
         // readahead would just thrash.
-        let _ = read_mmap.advise(memmap2::Advice::Random);
+        read_mmap.hint_random();
 
         let loaded = LoadedSidecar {
             mmap: read_mmap,
@@ -680,7 +679,7 @@ fn cleanup_orphan_streaming_tmp(dir: &Path) {
         // stale tmp file with no pid is by definition not in use.
         let stale = match pid {
             Some(p) if p == our_pid => false,                // ours
-            Some(p) => !pid_is_alive(p),
+            Some(p) => !crate::platform::pid_is_alive(p),
             None => true,
         };
         if stale {
@@ -697,23 +696,6 @@ fn parse_streaming_tmp_pid(name: &str) -> Option<u32> {
     last_seg.parse::<u32>().ok()
 }
 
-/// Checks whether a process exists, without sending it a real signal.
-/// `kill(pid, 0)` returns 0 if the process exists and we have permission
-/// to signal it; ESRCH means it's gone. EPERM means it exists but we
-/// can't signal — treat that as "alive" to be safe.
-fn pid_is_alive(pid: u32) -> bool {
-    if pid == 0 { return false; }
-    // SAFETY: kill with sig=0 just probes; doesn't deliver a signal.
-    let r = unsafe { libc::kill(pid as libc::pid_t, 0) };
-    if r == 0 { return true; }
-    // Errno reachable through std::io::Error::last_os_error
-    let err = std::io::Error::last_os_error();
-    match err.raw_os_error() {
-        Some(libc::EPERM) => true,
-        _ => false, // ESRCH or anything else: treat as not alive
-    }
-}
-
 /// Streams the records section of the just-written sidecar in 16 MiB
 /// chunks, computing `(max_subtree_size, fat_string_count)` for the
 /// header. We re-read from disk rather than mmap to keep heap bounded
@@ -723,7 +705,7 @@ fn scan_records_for_stats(
     base_offset: u64,
     node_count: usize,
 ) -> Result<(u32, u32), EngineError> {
-    use std::os::unix::fs::FileExt;
+    use crate::platform::PositionalIo;
     let rec_size = std::mem::size_of::<NodeRecord>();
     // Read in chunks aligned to NodeRecord boundary so we can cast each
     // chunk slice to &[NodeRecord] and walk it directly.

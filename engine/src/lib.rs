@@ -33,6 +33,7 @@ pub mod error;
 pub mod ffi;
 pub mod parser;
 pub mod path;
+pub mod platform;
 pub mod progress;
 pub mod query;
 pub mod render;

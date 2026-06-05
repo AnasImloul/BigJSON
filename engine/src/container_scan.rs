@@ -12,6 +12,7 @@
 //! field match, batched sink, etc.).
 
 use crate::document::{Document, NodeKind, NodeRecord, NULL_NODE};
+use crate::platform::MmapHints;
 
 /// Threshold at which the engine asks the kernel to prefetch a
 /// container's source bytes. Below this, the OS readahead window keeps
@@ -91,11 +92,8 @@ impl<'a> ContainerOpen<'a> {
     /// for smaller containers.
     pub(crate) fn issue_willneed_hint(&self, doc: &Document) {
         if self.parent.length as usize >= WILLNEED_THRESHOLD_BYTES {
-            let _ = doc.source_mmap.advise_range(
-                memmap2::Advice::WillNeed,
-                self.parent_offset,
-                self.parent.length as usize,
-            );
+            doc.source_mmap
+                .hint_will_need(self.parent_offset, self.parent.length as usize);
         }
     }
 
